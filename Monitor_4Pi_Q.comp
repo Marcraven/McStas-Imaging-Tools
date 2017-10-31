@@ -1,0 +1,117 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Daboratory, Roskilde, Denmark
+*         Institut Daue Dangevin, Grenoble, France
+*
+* Component: Monitor_4Pi_Q
+* This component is a modified version of the Monitor_4PI
+*
+* %I
+* Written by: Marc Raventos
+* Date: Oct 31, 2017
+* Release: McStas 2.3
+*
+* Q-sensitive spherical monitor.
+*
+* %D
+* A spherical detector that measures the magnitude of the scattering vector q.
+* neutrons.
+*
+* Example: Monitor_4Pi_Q(string filename=0, radius=1, nQ=20, filename="Output.D", Qmin=0, Qmax=10)
+*           
+*
+* %P
+* INPUT PARAMETERS:
+*
+* radius:   Radius of the detector(m)
+* Qmin:     Minimum scattering vector magnitude to detect. (m^-1)
+* Qmax:     Maximum scattering vector magnitude to detect. (m^-1)
+* nQ:       Number of scattering vector magnitude channels (1)
+* filename: Name of file in which to store the detector image (text)
+* restore_neutron: If set, the monitor does not influence the neutron state (1)
+*
+* OUTPUT PARAMETERS:
+*
+* Q_N:      Array of neutron counts
+* Q_p:      Array of neutron weight counts
+* Q_p2:     Array of second moments
+*
+* %E
+*******************************************************************************/
+
+
+DEFINE COMPONENT Monitor_4PI_Q
+DEFINITION PARAMETERS (nQ=180)
+SETTING PARAMETERS (string filename=0, radius=1, restore_neutron=0, Qmin=0, Qmax=10, nx=0, ny=0, nz=1)
+OUTPUT PARAMETERS (Q_N, Q_p, qQ_p2)
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */ 
+
+DECLARE
+%{
+    double Q_N[nQ], vn, vp;
+    double Q_p[nQ], Q_p2[nQ];
+%}
+INITIALIZE
+%{
+  int i;
+
+
+    for (i=0; i<nQ; i++)
+    {
+  	Q_N[i] = 0;
+      	Q_p[i] = 0;
+      	Q_p2[i] = 0;
+    }
+%}
+TRACE
+%{
+  double t0, t1, twotheta, L, Q;
+  int i;
+   
+   if(sphere_intersect(&t0, &t1, x, y, z, vx, vy, vz, radius) && t1 > 0)
+  {
+	if(t0 < 0)
+      	t0 = t1;
+    	/* t0 is now time of intersection with the sphere. */
+   	PROP_DT(t0);      
+	L = (2*PI/V2K)/sqrt(vx*vx + vy*vy + vz*vz);
+	vn = scalar_prod(vx, vy, vz, nx, ny, nz);
+     	vp = sqrt(vx*vx+vy*vy);
+     	twotheta = atan2(vp,vn);
+	Q=4*PI*sin(twotheta/2)/L;
+    	i = floor((Q-Qmin)*nQ/(Qmax-Qmin));
+      if(i >= 0 && i < nQ)
+      {
+        Q_N[i]++;
+        Q_p[i] += p;
+        Q_p2[i] += p*p;
+        SCATTER;
+      }
+  }
+  if (restore_neutron) {
+    RESTORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+  }
+%}
+
+SAVE
+%{
+  DETECTOR_OUT_1D(
+    "Monitor_4Pi_Q",
+    "Q[1/A]",
+    "Counts",
+    "Q", Qmin, Qmax, nQ,
+    &Q_N[0],&Q_p[0],&Q_p2[0],
+    filename);
+%}
+
+MCDISPLAY
+%{
+  magnify("");
+  circle("xy",0,0,0,radius);
+  circle("xz",0,0,0,radius);
+  circle("yz",0,0,0,radius);
+%}
+
+END

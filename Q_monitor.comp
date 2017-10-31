@@ -1,0 +1,128 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Q_monitor
+* This component is a modified version of the L_monitor
+* 
+* %I
+* Written by: Marc Raventos
+* Date: Oct 31, 2017
+* Release: McStas 2.3
+*
+* Q-sensitive square monitor.
+*
+* %D
+* A square single monitor that measures the magnitude of the scattering vector q.
+* neutrons.
+*
+* Example: Q_monitor(xmin=-0.1, xmax=0.1, ymin=-0.1, ymax=0.1,
+*           nQ=20, filename="Output.Q", Qmin=2, Qmax=10)
+*
+* %P
+* INPUT PARAMETERS:
+*
+* xmin:     Lower x bound of detector opening (m)
+* xmax:     Upper x bound of detector opening (m)
+* ymin:     Lower y bound of detector opening (m)
+* ymax:     Upper y bound of detector opening (m)
+* xwidth:   Width of detector. Overrides xmin,xmax. (m)
+* yheight:  Height of detector. Overrides ymin,ymax. (m)
+* Qmin:     Minimum scattering vector magnitude to detect. (m^-1)
+* Qmax:     Maximum scattering vector magnitude to detect. (m^-1)
+* nQ:       Number of scattering vector magnitude channels (1)
+* filename: Name of file in which to store the detector image (text)
+* restore_neutron: If set, the monitor does not influence the neutron state (1)
+*
+* OUTPUT PARAMETERS:
+*
+* Q_N:      Array of neutron counts
+* Q_p:      Array of neutron weight counts
+* Q_p2:     Array of second moments
+*
+* %E
+*******************************************************************************/
+
+DEFINE COMPONENT Q_monitor
+DEFINITION PARAMETERS (nQ=1000)
+SETTING PARAMETERS (string filename=0, xmin=-0.05, xmax=0.05, ymin=-0.05, ymax=0.05, 
+  xwidth=0, yheight=0, Qmin, Qmax, restore_neutron=0, nx=0, ny=0, nz=1)
+OUTPUT PARAMETERS (Q_N, Q_p, Q_p2)
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */ 
+DECLARE
+  %{
+    double Q_N[nQ];
+    double Q_p[nQ], Q_p2[nQ];
+  %}
+INITIALIZE
+  %{
+    int i;
+
+    if (xwidth  > 0) { xmax = xwidth/2;  xmin = -xmax; }
+    if (yheight > 0) { ymax = yheight/2; ymin = -ymax; }
+
+    if ((xmin >= xmax) || (ymin >= ymax)) {
+            printf("Q_monitor: %s: Null detection area !\n"
+                   "ERROR      (xwidth,yheight,xmin,xmax,ymin,ymax). Exiting",
+           NAME_CURRENT_COMP);
+      exit(0);
+    }
+
+    for (i=0; i<nQ; i++)
+    {
+      Q_N[i] = 0;
+      Q_p[i] = 0;
+      Q_p2[i] = 0;
+    }
+  %}
+TRACE
+  %{
+    int i;
+    double Q, L, twotheta;
+
+    PROP_Z0;
+    if (x>xmin && x<xmax && y>ymin && y<ymax)
+    {
+      L = (2*PI/V2K)/sqrt(vx*vx + vy*vy + vz*vz);
+	vn = scalar_prod(vx, vy, vz, nx, ny, nz);
+     	vp = sqrt(vx*vx+vy*vy);
+     	twotheta = atan2(vp,vn);
+	Q=4*PI*sin(twotheta/2)/L;
+      i = floor((Q-Qmin)*nQ/(Qmax-Qmin));
+      if(i >= 0 && i < nQ)
+      {
+        Q_N[i]++;
+        Q_p[i] += p;
+        Q_p2[i] += p*p;
+        SCATTER;
+      }
+    } 
+    if (restore_neutron) {
+      RESTORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+    }
+  %}
+SAVE
+  %{
+    DETECTOR_OUT_1D(
+        "Q monitor",
+        "Q [AA]",
+        "Intensity",
+        "Q", Qmin, Qmax, nQ,
+        &Q_N[0],&Q_p[0],&Q_p2[0],
+        filename);
+  %}
+
+MCDISPLAY
+%{
+  magnify("xy");
+  multiline(5, (double)xmin, (double)ymin, 0.0,
+               (double)xmax, (double)ymin, 0.0,
+               (double)xmax, (double)ymax, 0.0,
+               (double)xmin, (double)ymax, 0.0,
+               (double)xmin, (double)ymin, 0.0);
+%}
+
+END
