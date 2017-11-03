@@ -5,46 +5,44 @@
 *         Risoe National Laboratory, Roskilde, Denmark
 *         Institut Laue Langevin, Grenoble, France
 *
-* Component: MCP_square
+* Component: Flexible_grating
 *
 * %I
 * Written by: Manuel Morgano and Marc Raventos
 * Date: Nov 03, 2017
 * Release: McStas 2.3
 *
-* Rectangular/circular slit with optional insignificance cut
+* 2D square grating component
 *
 * %D
-* A simple rectangular or circular slit. You may either
-* specify the radius (circular shape), or the rectangular bounds.
-* No transmission around the slit is allowed.
-* If cutting option is used, low-weight neutron rays are ABSORBED
+* A square 2D grating component originally designed to simulate scattering rejectors for neutron imaging. It can be used as 1D grating if the ychan or xchan parameters are set to a very high large value. 
 *
-* Example: Slit(xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01)
-*          Slit(radius=0.01, cut=1e-10)
+* Example: Flexible_grating(xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01, zthickness=0.001, xchan=0.0001, ychan=0.0001, wall = 0.00001, transmission = 0)
 *
 * %P
 * INPUT PARAMETERS
 *
-* radius: Radius of slit in the z=0 plane, centered at Origo (m)
 * xmin: Lower x bound (m)
 * xmax: Upper x bound (m)
 * ymin: Lower y bound (m)
 * ymax: Upper y bound (m)
-* xwidth: Width of slit. Overrides xmin,xmax. (m)
-* yheight:Height of slit. Overrides ymin,ymax. (m)
-*
-* Optional parameters:
-* cut:  Lower limit for allowed weight (1)
+* xwidth: Width of the grating. Overrides xmin,xmax. (m)
+* yheight: Height of the grating. Overrides ymin,ymax. (m)
+* zthickness: Depth of the grating channels. (m)
+* xchan: Width of the grating channels. (m)
+* ychan: Height of the grating channels. (m)
+* wall: Thickness of the absorbent walls between channels. (m)
+* wall_abs: Attenuation coefficient of the absorbent for 1 Angstrom neutrons. (1/m). (By default, solid Gd)
+* transmission: If set to 0, the walls are infinitely absorbing. If set to 1, absorption follows the Beer-Lambert law with wall_abs as attenuation coefficient.
 *
 * %E
 *******************************************************************************/
 
 
-DEFINE COMPONENT MCP_square
+DEFINE COMPONENT Flexible_grating
 DEFINITION PARAMETERS ()
 SETTING PARAMETERS (xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01, 
-  xwidth=0, yheight=0, zthickness=0.001, xchan=0.0001, ychan=0.0001, wall = 0.00001, transmission = 0)
+  xwidth=0, yheight=0, zthickness=0.001, xchan=0.0001, ychan=0.0001, wall = 0.00001, wall_abs=83628.5, transmission = 0)
 OUTPUT PARAMETERS ()
 /* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */ 
 INITIALIZE
@@ -57,7 +55,7 @@ INITIALIZE
 
 TRACE
 %{
-  double xcell1=0, ycell1=0, xpos1=0, ypos1=0,xcell2=0, ycell2=0, xpos2=0, ypos2=0,xcell_w=0,ycell_w=0,red_wallx=0,red_wally=0, lambda=0, V=0,eff_thickness=0,wall_abs=83628.5,eff_wallx=0,eff_wally=0;
+  double xcell1=0, ycell1=0, xpos1=0, ypos1=0,xcell2=0, ycell2=0, xpos2=0, ypos2=0,xcell_w=0,ycell_w=0,red_wallx=0,red_wally=0, lambda=0, V=0,eff_thickness=0,eff_wallx=0,eff_wally=0;
   double v=0,dx,dy,dt,x2,y2,int_dt,wall_dx1,wall_dx2,tempx=0,tempy=0,black=0;
   int nxcell1=0, nycell1=0,nxcell2=0, nycell2=0;
   xcell_w=(xchan+wall);
