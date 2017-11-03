@@ -1,0 +1,434 @@
+DEFINE INSTRUMENT NEUTRA(distcm=20 , thicknesscm=1, material=1, TransOnly = 0, theta=0)
+DECLARE
+%{
+double blende, blende_exit_radius, blende_propa_window;
+int blende_int;						/* must be done to use the switch statement */
+double Lambda_Min, Lambda_Max;
+double thickness, radius, dist, mcpdist, scatf, slitside, modradius, gdthick, gdlength, D;
+char *unit_cell;
+%}
+INITIALIZE
+%{
+thickness=thicknesscm/100;
+dist=distcm/100;
+Lambda_Min=0.5;
+Lambda_Max=8;
+
+if (material==1)
+unit_cell="Cu.nxs";
+
+if (material ==2)
+unit_cell="Fe.nxs";
+
+if (material==3)
+unit_cell="V.nxs";
+
+if (material==4)
+unit_cell="Pb.nxs";
+
+if (material==5)
+unit_cell="H.nxs";
+
+if (material==6)
+unit_cell="Al.nxs";
+
+if (material==7)
+unit_cell="Ti.nxs";
+%}
+TRACE
+
+
+
+COMPONENT Origin = Progress_bar()
+  AT (0, 0, 0) ABSOLUTE
+/*
+COMPONENT Test_Source = Source_gen(
+dist = 6.6535 , focus_xw = 0.04, focus_yh = 0.04,
+//dist = 1.6535, focus_xw = 0.01772, focus_yh = 0.01772,
+  Lmin = Lambda_Min, Lmax = Lambda_Max,
+    I1 =(0.6319e12/4/PI), T1 = 703.2,
+    I2 =(0.2782e12/4/PI),T2 = 338.9,
+    I3=(0.3795e13/4/PI),T3=344.7,
+   xwidth=0.085, yheight=0.155)
+AT (0, 0, 0) RELATIVE Origin
+*/
+COMPONENT Test_Source = Source_gen(
+flux_file="flux_file_NEUTRA.txt",
+dist = 6.6535 , focus_xw = 0.031, focus_yh = 0.031,
+ //dist = 1.6535 , focus_xw = 0.04, focus_yh = 0.04,
+xwidth=0.03, yheight=0.03, 
+//xwidth=0.085, yheight=0.155, 
+Lmin = Lambda_Min, Lmax = Lambda_Max)
+  AT (0, 0, 0) RELATIVE Origin
+
+EXTEND %{
+  scatf = 0 ;
+%}
+
+
+COMPONENT Slit1 = Slit(
+    radius = 0.01)
+  AT (0, 0, 1.6535 )RELATIVE Origin
+
+/*
+COMPONENT L_S = L_monitor_scinti(
+    nL = 1000, filename = "LScint.txt", xwidth = 4*radius,
+    yheight = 4*radius, Lmin = Lambda_Min, Lmax = Lambda_Max,
+    restore_neutron = 1)
+  AT (0, 0, 3.4) RELATIVE a1
+*/
+COMPONENT L = L_monitor(
+    nL = 1000, filename = "L.txt", xwidth = 4*radius,
+    yheight = 4*radius, Lmin = Lambda_Min, Lmax = Lambda_Max,
+    restore_neutron = 1)
+  AT (0, 0, 3.4001) RELATIVE Origin
+
+
+
+
+
+COMPONENT Pos2 = Arm(
+    )
+AT (0, 0, 7.292 ) RELATIVE Origin
+//AT (0, 0, 1.852 ) RELATIVE Origin
+
+
+ COMPONENT Powder = sample_nxs_old(
+ radius =0.0125, 
+//xwidth=0.028,
+//zthick=0.028,
+   yheight = thickness,
+   nxsFileName = unit_cell,
+   max_hkl=8,
+   TransOnly = TransOnly,
+  IncohScat =1,
+   MultiScat = 1,
+   d_phi = 0)
+ WHEN (material>0)
+  AT (0, 0,-dist-thickness/2) RELATIVE Pos2 ROTATED (90, 0, theta) RELATIVE Pos2
+
+EXTEND %{
+//if (!SCATTERED) ABSORB;else 
+scatf=SCATTERED;
+ //if (SCATTERED) scatf=SCATTERED;
+//scatf=SCATTERED;
+%}
+
+COMPONENT PreMCP= Scintillator(
+     nx= 100, ny= 100, filename= "PreMCP.psd", xwidth=0.030, yheight=0.030, restore_neutron=1, a=0.07977 )
+WHEN(scatf!=0) 
+ AT (0, 0, 2e-2-dist-2e-6)  RELATIVE Pos2
+
+COMPONENT ScatteringFilter= MCP_square(
+xwidth=0.030, yheight=0.030, zthickness=0.0001,xchan=0.00002,ychan=0.00002, wall=0.000001,transmission=0 )
+  AT (0, 0, 2e-2-dist-1e-6)  RELATIVE Pos2
+
+/*
+COMPONENT SpherePSD1 = Monitor_4PI_Q(
+   filename = "SpherePSD1.psd", radius = 1,
+    restore_neutron = 1, Qmin = 0, Qmax =10, nQ=1000 )
+WHEN(scatf!=0)
+  AT (0, 0, -dist-thickness/2) RELATIVE Pos2
+*/
+/*
+COMPONENT SpherePSD2 = PSD_monitor_4PI_HKL(
+    nx = 1000, ny = 1000, filename = "SpherePSD2.psd", radius = 1,
+    restore_neutron = 1, HKLmin = 1.7, HKLmax = 1.9)
+WHEN(scatf!=0)
+  AT (0, 0, -dist-thickness/2) RELATIVE Pos2
+
+
+COMPONENT Sphere1 = 4PI_HKL_histogram(
+    nD = 1800, filename = "Sphere1.txt", radius = 1,Dmax=90,
+    restore_neutron = 1, HKLmin=2, HKLmax=2.5)
+WHEN(scatf!=0)
+AT (0, 0,-dist-thickness/2) RELATIVE Pos2 
+*/
+
+/*
+COMPONENT PSD= PSD_monitor(
+     nx= 800, ny=800,filename= "PSD.psd", xwidth=0.030, yheight=0.030, restore_neutron=1  )
+WHEN(scatf==0)
+  AT (0, 0, 1.5e-5) RELATIVE Pos2
+*/
+COMPONENT Scintillator100umCloseOB= Scintillator(
+     nx= 100, ny= 100, filename= "Scintillator100umCloseOB.psd", xwidth=0.030, yheight=0.030, restore_neutron=1, a=0.07977 )
+  AT (0, 0, 2e-2-dist)  RELATIVE Pos2
+COMPONENT Scintillator100umClose0= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100umClose0.psd", xwidth=0.030, yheight=0.030, restore_neutron=1, a=0.07977 )
+WHEN(scatf!=0)
+  AT (0, 0, 2e-2-dist)  RELATIVE Pos2
+COMPONENT Scintillator100umClose1= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100umClose1.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==1)
+  AT (0, 0, 2e-2-dist)  RELATIVE Pos2
+COMPONENT Scintillator100umClose2= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100umClose2.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==2)
+  AT (0, 0, 2e-2-dist)  RELATIVE Pos2
+COMPONENT Scintillator100umClose3= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100umClose3.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==3)
+  AT (0, 0, 2e-2-dist)  RELATIVE Pos2
+COMPONENT Scintillator100umClose4= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100umClose4.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==4)
+  AT (0, 0, 2e-2-dist)  RELATIVE Pos2
+/*
+COMPONENT PSDScat= PSD_monitor(
+     nx= 800, ny=800,filename= "PSDScat.psd", xwidth=0.030, yheight=0.030, restore_neutron=1  )
+WHEN(scatf!=0)
+  AT (0, 0, 1.6e-5) RELATIVE Pos2
+*/
+/*
+COMPONENT Scintillator200um= Scintillator(
+     nx= 800, ny=800,filename= "Scintillator200um.psd", xwidth=0.030, yheight=0.030, restore_neutron=1  )
+WHEN(scatf==0)
+  AT (0, 0, 1.6e-5)  RELATIVE Pos2
+*/
+COMPONENT Scintillator100um200mmOB= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100um200mmOB.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+  AT (0, 0, 1.7e-5)  RELATIVE Pos2
+COMPONENT Scintillator100um200mm0= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100um200mm0.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf!=0)
+  AT (0, 0, 1.7e-5)  RELATIVE Pos2
+COMPONENT Scintillator100um200mm1= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100um200mm1.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==1)
+  AT (0, 0, 1.7e-5)  RELATIVE Pos2
+COMPONENT Scintillator100um200mm2= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100um200mm2.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==2)
+  AT (0, 0, 1.7e-5)  RELATIVE Pos2
+COMPONENT Scintillator100um200mm3= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100um200mm3.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==3)
+  AT (0, 0, 1.7e-5)  RELATIVE Pos2
+COMPONENT Scintillator100um200mm4= Scintillator(
+     nx=  100, ny= 100, filename= "Scintillator100um200mm4.psd", xwidth=0.030, yheight=0.030, restore_neutron=1 , a=0.07977 )
+WHEN(scatf==4)
+  AT (0, 0, 1.7e-5)  RELATIVE Pos2
+
+
+
+/*
+COMPONENT ScintillatorScat= Scintillator(
+     nx= 800, ny=800,filename= "ScintillatorScat.psd", xwidth=0.030, yheight=0.030, restore_neutron=1  )
+WHEN(scatf!=0)
+  AT (0, 0, 1.6e-5)  RELATIVE Pos2
+*/
+/*
+COMPONENT Q_monitor = Q_monitor(
+    nQ = 1000, filename = "Q_monitor.txt", restore_neutron = 1, xwidth=0.030, yheight=0.030,
+    Qmin = 0, Qmax = 10)
+WHEN(scatf!=0)
+  AT (0, 0, 2.5e-5) RELATIVE Pos2
+*//*
+COMPONENT SA = SA_histogram(
+    nD = 87, filename = "D.txt", xwidth = 0.02, yheight = 0.02, Dmin = 0, Dmax = 90,
+    restore_neutron = 1)
+WHEN(scatf!=0)
+  AT (0, 0, 2.5e-5) RELATIVE Pos2
+*/
+/*
+COMPONENT HKL = HKL_histogram(
+    nHKL = 1000, filename = "HKL.txt", xwidth = 0.02, yheight = 0.02, HKLmin = 0, HKLmax = 5,
+    restore_neutron = 1)
+WHEN(scatf!=0)
+  AT (0, 0, 2.6e-5) RELATIVE Pos2
+
+
+COMPONENT Scattered1= PSD_monitor_HKL(
+     nx= 800, ny=800,filename= "Scattered1.psd", xwidth=0.040, yheight=0.040, restore_neutron=1, HKLmin=2, HKLmax=2.5  )
+WHEN(scatf!=0)
+  AT (0, 0, 2.7e-5) RELATIVE Pos2
+
+COMPONENT Scattered2= PSD_monitor_HKL(
+     nx= 800, ny=800,filename= "Scattered2.psd", xwidth=0.040, yheight=0.040, restore_neutron=1, HKLmin=1.5, HKLmax=2  )
+WHEN(scatf!=0)
+  AT (0, 0, 2.8e-5) RELATIVE Pos2
+
+COMPONENT Scattered3= PSD_monitor_HKL(
+     nx= 800, ny=800,filename= "Scattered3.psd", xwidth=0.040, yheight=0.040, restore_neutron=1, HKLmin=1.2, HKLmax=1.3  )
+WHEN(scatf!=0)
+  AT (0, 0, 2.8e-5) RELATIVE Pos2
+*/
+
+
+
+END
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,186 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: MCP_square
+*
+* %I
+* Written by: Manuel Morgano and Marc Raventos
+* Date: Nov 03, 2017
+* Release: McStas 2.3
+*
+* Rectangular/circular slit with optional insignificance cut
+*
+* %D
+* A simple rectangular or circular slit. You may either
+* specify the radius (circular shape), or the rectangular bounds.
+* No transmission around the slit is allowed.
+* If cutting option is used, low-weight neutron rays are ABSORBED
+*
+* Example: Slit(xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01)
+*          Slit(radius=0.01, cut=1e-10)
+*
+* %P
+* INPUT PARAMETERS
+*
+* radius: Radius of slit in the z=0 plane, centered at Origo (m)
+* xmin: Lower x bound (m)
+* xmax: Upper x bound (m)
+* ymin: Lower y bound (m)
+* ymax: Upper y bound (m)
+* xwidth: Width of slit. Overrides xmin,xmax. (m)
+* yheight:Height of slit. Overrides ymin,ymax. (m)
+*
+* Optional parameters:
+* cut:  Lower limit for allowed weight (1)
+*
+* %E
+*******************************************************************************/
+
+
+DEFINE COMPONENT MCP_square
+DEFINITION PARAMETERS ()
+SETTING PARAMETERS (xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01, 
+  xwidth=0, yheight=0, zthickness=0.001, xchan=0.0001, ychan=0.0001, wall = 0.00001, transmission = 0)
+OUTPUT PARAMETERS ()
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */ 
+INITIALIZE
+%{
+  if (xwidth > 0)  { xmax=xwidth/2;  xmin=-xmax; }
+  if (yheight > 0) { ymax=yheight/2; ymin=-ymax; }
+  if (xmin == 0 && xmax == 0 && ymin == 0 && ymax == 0)
+    { fprintf(stderr,"Slit: %s: Error: give geometry\n", NAME_CURRENT_COMP); exit(-1); }
+%}
+
+TRACE
+%{
+  double xcell1=0, ycell1=0, xpos1=0, ypos1=0,xcell2=0, ycell2=0, xpos2=0, ypos2=0,xcell_w=0,ycell_w=0,red_wallx=0,red_wally=0, lambda=0, V=0,eff_thickness=0,wall_abs=83628.5,eff_wallx=0,eff_wally=0;
+  double v=0,dx,dy,dt,x2,y2,int_dt,wall_dx1,wall_dx2,tempx=0,tempy=0,black=0;
+  int nxcell1=0, nycell1=0,nxcell2=0, nycell2=0;
+  xcell_w=(xchan+wall);
+  ycell_w=(ychan+wall);
+  dt=zthickness/vz;
+   PROP_Z0;
+    if (((x>xmin) && (x<xmax) && (y>ymin) && (y<ymax)) && (transmission =0))
+	{
+		nxcell1=floor(x / xcell_w);
+		nycell1=floor(y / ycell_w);
+		xpos1=(x-nxcell1*xcell_w)/xcell_w;
+		ypos1=(y-nycell1*ycell_w)/ycell_w;
+		red_wallx=wall*0.5/xcell_w;
+		red_wally=wall*0.5/ycell_w;
+		PROP_DT(zthickness/vz);
+		nxcell2=floor(x / xcell_w);
+		nycell2=floor(y / ycell_w);
+		xpos2=(x-nxcell2*xcell_w)/xcell_w;
+		ypos2=(y-nycell2*ycell_w)/ycell_w;
+			if((nxcell2!=nxcell1) || (nycell2!=nycell1) || (xpos1<red_wallx) || (xpos1>(1-red_wallx)) || (ypos1<red_wally) || (ypos1>(1-red_wally)) || (xpos2<red_wallx) || (xpos2>(1-red_wallx)) || (ypos2<red_wally) || (ypos2>(1-red_wally)))
+      				ABSORB;
+	}
+    if (((x>xmin) && (x<xmax) && (y>ymin) && (y<ymax)) && (transmission = 1))
+	{
+		nxcell1=floor(x / xcell_w);
+		nycell1=floor(y / ycell_w);
+		xpos1=(x-nxcell1*xcell_w)/xcell_w;
+		ypos1=(y-nycell1*ycell_w)/ycell_w;
+		red_wallx=wall*0.5/xcell_w;
+		red_wally=wall*0.5/ycell_w;
+//		PROP_DT(dt);
+		x2=x+vx*dt;
+		y2=y+vy*dt;
+		nxcell2=floor(x2/ xcell_w);
+		nycell2=floor(y2 / ycell_w);
+		xpos2=(x2-nxcell2*xcell_w)/xcell_w;
+		ypos2=(y2-nycell2*ycell_w)/ycell_w;
+			if((nxcell2!=nxcell1) || (nycell2!=nycell1) || (xpos1<red_wallx) || (xpos1>(1-red_wallx)) || (ypos1<red_wally) || (ypos1>(1-red_wally)) || (xpos2<red_wallx) || (xpos2>(1-red_wallx)) || (ypos2<red_wally) || (ypos2>(1-red_wally)))
+				{
+					V=sqrt(vx*vx+vy*vy+vz*vz);	/* calculation of neutron velocity */
+						/*if (nxcell2!=nxcell1)
+			p < cut				eff_wallx=(nxcell2-nxcell1-1)*wall*cos(vx/V)*zthickness*cos(vz/V);
+						if (nycell2!=nycell1)
+							eff_wally=(nxcell2-nxcell1-1)*wall*cos(vy/V)*zthickness*cos(vz/V);*/
+					if (vx<0)
+						{
+							tempx=xpos1;
+							xpos1=xpos2;
+							xpos2=tempx;
+						}
+					if (xpos1<=red_wallx)
+						eff_wallx=2*red_wallx-xpos1;
+					if ((xpos1>red_wallx)&&(xpos1<1-red_wallx))
+						eff_wallx=red_wallx;
+					if (xpos1>=1-red_wallx)
+						eff_wallx=1-xpos1;
+					if (xpos2<=red_wallx)
+						eff_wallx+=xpos2;
+					if ((xpos2>red_wallx)&&(xpos1<1-red_wallx))
+						eff_wallx+=red_wallx;
+					if (xpos2>=1-red_wallx)
+						eff_wallx+=2*red_wallx-1+xpos2;
+						
+					eff_wallx+=(nxcell2-nxcell1-1)*2*red_wallx;
+					if (vy<0)
+						{
+							tempy=ypos1;
+							ypos1=ypos2;
+							ypos2=tempy;
+						}
+					if (ypos1<=red_wally)
+						eff_wally=2*red_wally-ypos1;
+					if ((ypos1>red_wally)&&(ypos1<1-red_wally))
+						eff_wally=red_wally;
+					if (ypos1>=1-red_wally)
+						eff_wally=1-ypos1;
+					if (ypos2<=red_wally)
+						eff_wally+=ypos2;
+					if ((ypos2>red_wally)&&(ypos1<1-red_wally))
+						eff_wally+=red_wally;
+					if (ypos2>=1-red_wally)
+						eff_wally+=2*red_wally-1+ypos2;
+						
+					eff_wally+=(nycell2-nycell1-1)*2*red_wally;
+						
+					dx=vx*dt;
+					dy=vy*dt;
+					eff_thickness=sqrt(eff_wallx*eff_wallx+eff_wally*eff_wally);
+					//eff_thickness=eff_thickness/(sqrt(vx*vx+vy*vy))/V;
+					black=eff_thickness/(sqrt(dx*dx+dy*dy));
+					lambda=(2*PI/V2K)/V;		/* calculation of lambda */
+					/*wall_abs=83628.5;*/			/* substrate absorption cross section (1/m) for 1 AA neutrons */
+					eff_thickness=black*sqrt(dx*dx+dy*dy+zthickness*zthickness);
+					p*=exp(-(eff_thickness)*(wall_abs*lambda));
+					PROP_DT(dt);
+ 
+				}
+	}
+
+    else
+	{
+		PROP_DT(dt);
+	}
+%}
+
+MCDISPLAY
+%{
+  magnify("xy");
+    double xw, yh;
+    xw = (xmax - xmin)/2.0;
+    yh = (ymax - ymin)/2.0;
+    multiline(3, xmin-xw, (double)ymax, 0.0,
+              (double)xmin, (double)ymax, 0.0,
+              (double)xmin, ymax+yh, 0.0);
+    multiline(3, xmax+xw, (double)ymax, 0.0,
+              (double)xmax, (double)ymax, 0.0,
+              (double)xmax, ymax+yh, 0.0);
+    multiline(3, xmin-xw, (double)ymin, 0.0,
+              (double)xmin, (double)ymin, 0.0,
+              (double)xmin, ymin-yh, 0.0);
+    multiline(3, xmax+xw, (double)ymin, 0.0,
+              (double)xmax, (double)ymin, 0.0,
+              (double)xmax, ymin-yh, 0.0);
+%}
+
+END
